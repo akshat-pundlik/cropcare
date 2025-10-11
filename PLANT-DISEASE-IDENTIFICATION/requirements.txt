@@ -8,4 +8,6 @@ streamlit
 joblib
 matplotlib
 seaborn
+keras 
+tensorflow 
 
