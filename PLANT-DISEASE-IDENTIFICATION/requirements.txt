@@ -4,11 +4,11 @@ wheel>=0.42.0
 numpy>=1.26.0
 pandas
 scikit-learn
-streamlit
-pickle-mixin
+streamlit>=1.36.0
 seaborn
 matplotlib
 tensorflow
 keras
 opencv_python_headless
+
 
