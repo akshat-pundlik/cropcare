@@ -5,10 +5,7 @@ numpy>=1.26.0
 pandas
 scikit-learn
 streamlit>=1.36.0
-seaborn
+joblib
 matplotlib
-tensorflow
-keras
-opencv_python_headless
-
+seaborn
 
