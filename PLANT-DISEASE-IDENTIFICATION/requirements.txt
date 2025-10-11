@@ -1,15 +1,14 @@
+pip>=25.0
+setuptools>=70.0
+wheel>=0.42.0
+numpy>=1.26.0
+pandas
+scikit-learn
+streamlit
 pickle-mixin
 seaborn
-pandas
 matplotlib
 tensorflow
 keras
 opencv_python_headless
-pip>=25.0
-setuptools>=68.0
-wheel>=0.41
-numpy>=1.26.0
-scikit-learn
-streamlit
-
 
