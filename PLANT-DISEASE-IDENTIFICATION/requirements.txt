@@ -8,8 +8,3 @@ streamlit>=1.36.0
 joblib
 matplotlib
 seaborn
-
-git add requirements.txt
-git commit -m "Fix numpy build error for Python 3.13"
-git push
-
