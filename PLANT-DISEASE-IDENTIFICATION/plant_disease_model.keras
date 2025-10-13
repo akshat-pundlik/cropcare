@@ -1,118 +1,128 @@
-# plant_disease_inference.ipynb
-
 # %% [markdown]
-# # Plant Disease Prediction with pre-trained model
+# # 🌿 Plant Disease Detection — Keras Training Script
+# Uses EfficientNetB0 + ImageDataGenerator
+# Works directly with your PLANT-DISEASE-IDENTIFICATION/train and test folders
 
 # %% [code]
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-from tensorflow import keras
-from tensorflow.keras.preprocessing import image
+import tensorflow as tf
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+from tensorflow.keras.applications import EfficientNetB0
+from tensorflow.keras import layers, models
+from tensorflow.keras.optimizers import Adam
+from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+
+# -------------------- PATH CONFIG --------------------
+BASE_DIR = "PLANT-DISEASE-IDENTIFICATION"
+TRAIN_DIR = os.path.join(BASE_DIR, "train")
+TEST_DIR = os.path.join(BASE_DIR, "test")
+
+# Check folders
+if not os.path.exists(TRAIN_DIR) or not os.path.exists(TEST_DIR):
+    raise FileNotFoundError("Make sure 'train' and 'test' folders exist inside PLANT-DISEASE-IDENTIFICATION")
+
+# -------------------- PARAMETERS --------------------
+IMG_SIZE = (224, 224)
+BATCH_SIZE = 32
+EPOCHS = 15
+LEARNING_RATE = 1e-4
 
 # %% [markdown]
-# ## 1. Load the model
+# ## 1️⃣ Prepare Image Data
 
 # %% [code]
-model_path = "plant_disease_model.keras"  # adjust path if needed
-model = keras.models.load_model(model_path)
+train_datagen = ImageDataGenerator(
+    rescale=1./255,
+    rotation_range=25,
+    width_shift_range=0.2,
+    height_shift_range=0.2,
+    zoom_range=0.2,
+    shear_range=0.2,
+    horizontal_flip=True
+)
+
+test_datagen = ImageDataGenerator(rescale=1./255)
+
+train_gen = train_datagen.flow_from_directory(
+    TRAIN_DIR,
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    class_mode='categorical'
+)
+
+test_gen = test_datagen.flow_from_directory(
+    TEST_DIR,
+    target_size=IMG_SIZE,
+    batch_size=BATCH_SIZE,
+    class_mode='categorical',
+    shuffle=False
+)
+
+num_classes = train_gen.num_classes
+print(f"✅ Found {num_classes} plant disease classes.")
+
+# %% [markdown]
+# ## 2️⃣ Build Model — EfficientNetB0
+
+# %% [code]
+base_model = EfficientNetB0(include_top=False, input_shape=IMG_SIZE + (3,), weights='imagenet')
+base_model.trainable = False
+
+model = models.Sequential([
+    base_model,
+    layers.GlobalAveragePooling2D(),
+    layers.Dropout(0.3),
+    layers.Dense(256, activation='relu'),
+    layers.Dropout(0.3),
+    layers.Dense(num_classes, activation='softmax')
+])
+
+model.compile(
+    optimizer=Adam(learning_rate=LEARNING_RATE),
+    loss='categorical_crossentropy',
+    metrics=['accuracy']
+)
+
 model.summary()
 
 # %% [markdown]
-# ## 2. Prepare class labels
-# You need a mapping from numeric class indices to disease names.  
-# Ideally from the original training (train directory names).
-
-# Example:
-class_names = [
-    "Apple___Black_rot",
-    "Apple___Cedar_apple_rust",
-    "Apple___healthy",
-    # … add all classes in same order as training
-]
-
-# %% [markdown]
-# ## 3. Utility: load and preprocess a single image
+# ## 3️⃣ Train Model
 
 # %% [code]
-def load_and_preprocess(img_path, target_size=(224, 224)):
-    img = image.load_img(img_path, target_size=target_size)
-    img_array = image.img_to_array(img)
-    img_array = img_array / 255.0  # normalize
-    img_array = np.expand_dims(img_array, axis=0)  # make batch of 1
-    return img_array
+checkpoint = ModelCheckpoint("plant_disease_model.keras", save_best_only=True, monitor='val_accuracy', mode='max')
+early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+
+history = model.fit(
+    train_gen,
+    validation_data=test_gen,
+    epochs=EPOCHS,
+    callbacks=[checkpoint, early_stop],
+    verbose=1
+)
 
 # %% [markdown]
-# ## 4. Predict on a sample image
+# ## 4️⃣ Fine-Tuning (optional for better accuracy)
 
 # %% [code]
-test_img_path = "test/Apple___Black_rot/0ef9...jpg"  # adjust to an actual test image path
-img_arr = load_and_preprocess(test_img_path, target_size=(224,224))
+base_model.trainable = True
+for layer in base_model.layers[:100]:
+    layer.trainable = False
 
-pred = model.predict(img_arr)
-pred_class_idx = np.argmax(pred[0])
-pred_confidence = pred[0][pred_class_idx]
+model.compile(optimizer=Adam(learning_rate=1e-5),
+              loss='categorical_crossentropy',
+              metrics=['accuracy'])
 
-print("Predicted class index:", pred_class_idx)
-print("Confidence:", pred_confidence)
-
-pred_class_name = class_names[pred_class_idx]
-print("Predicted disease / class:", pred_class_name)
+fine_tune_history = model.fit(
+    train_gen,
+    validation_data=test_gen,
+    epochs=5,
+    callbacks=[checkpoint, early_stop],
+    verbose=1
+)
 
 # %% [markdown]
-# ## 5. Display image + predicted label
+# ## 5️⃣ Save Final Model
 
 # %% [code]
-plt.imshow(image.load_img(test_img_path))
-plt.axis("off")
-plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
-plt.show()
-
-# %% [markdown]
-# ## 6. Batch prediction on a folder
-
-# %% [code]
-def predict_on_folder(folder_path):
-    results = []
-    for fname in os.listdir(folder_path):
-        if fname.lower().endswith((".jpg", ".png", ".jpeg")):
-            full = os.path.join(folder_path, fname)
-            arr = load_and_preprocess(full)
-            pred = model.predict(arr)
-            idx = np.argmax(pred[0])
-            conf = pred[0][idx]
-            results.append((fname, class_names[idx], conf))
-    return results
-
-folder = "test/Apple___healthy"  # example
-res = predict_on_folder(folder)
-for fname, cls, conf in res:
-    print(f"{fname} → {cls} ({conf:.2f})")
-
-# %% [markdown]
-# ## 7. (Optional) Evaluate accuracy across test set
-
-# You could loop through all test subfolders, compare predicted vs true labels, and compute accuracy.
-
-# %% [code]
-def evaluate_test_dir(test_dir):
-    total = 0
-    correct = 0
-    for class_name in os.listdir(test_dir):
-        class_folder = os.path.join(test_dir, class_name)
-        if not os.path.isdir(class_folder):
-            continue
-        for fname in os.listdir(class_folder):
-            if not fname.lower().endswith((".jpg", ".png", ".jpeg")):
-                continue
-            img_path = os.path.join(class_folder, fname)
-            arr = load_and_preprocess(img_path)
-            pred = model.predict(arr)
-            idx = np.argmax(pred[0])
-            if class_names[idx] == class_name:
-                correct += 1
-            total += 1
-    print("Test Accuracy = {:.2f}%".format(100 * correct / total))
-
-test_dir = "test"
-evaluate_test_dir(test_dir)
+model.save("plant_disease_model.keras")
+print("✅ Model training completed and saved as 'plant_disease_model.keras'")
