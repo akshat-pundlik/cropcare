@@ -19,7 +19,24 @@ from sklearn.preprocessing import LabelEncoder
 # Display Images
 # import Image from pillow to open images
 from PIL import Image
-img = Image.open("crop.png")
+import os
+from PIL import Image
+# ... other imports
+
+# Get the absolute directory of the current script (webapp.py)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the full path to the image file
+# This assumes 'crop.png' is in the SAME folder as webapp.py
+image_path = os.path.join(script_dir, "crop.png")
+
+# Line 22 (or wherever you open the image)
+try:
+    img = Image.open(image_path)
+except FileNotFoundError:
+    print(f"Error: The file {image_path} was not found. Check upload and filename.")
+    # You may want to exit or use a placeholder image here
+    raise
 # display image using streamlit
 # width is used to set the width of an image
 st.image(img)
@@ -98,4 +115,5 @@ def main():
 ## Running the main function
 if __name__ == '__main__':
     main()
+
 
