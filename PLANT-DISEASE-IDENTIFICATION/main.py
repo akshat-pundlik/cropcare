@@ -1,90 +1,91 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
-import os # <--- ADDED for robust path handling
+import os
 from PIL import Image
 
-# --- CONFIGURATION & ROBUST PATH HANDLING ---
+# -------------------- CONFIGURATION --------------------
 
-# Get the absolute directory of the current script (main.py)
+# Get the absolute directory of the current script for robust path finding
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-@st.cache_resource # Caches the model so it only loads ONCE (crucial for Streamlit)
+@st.cache_resource # CRUCIAL: Caches the model so it only loads ONCE.
 def load_disease_model():
-    # Model loading using robust path and stable .h5 format (RECOMMENDED FIX)
-    model_filename = "plant_disease_model.h5" # <--- Use the stable .h5 format
+    """Loads the model using a robust, absolute path."""
+    model_filename = "plant_disease_model.h5"
     model_path = os.path.join(SCRIPT_DIR, model_filename)
     
     try:
+        # Load the model using the stable HDF5 format and robust path
         model = tf.keras.models.load_model(model_path)
         return model
     except Exception as e:
-        # If the model fails to load, display a clear error message
-        st.error(f"FATAL ERROR: Could not load the model. Please check file name/path: {model_path}")
+        # Custom error message with the exact path it checked
+        st.error(f"FATAL ERROR: Could not load the model from {model_path}. "
+                 "Please check file name/path and TensorFlow version.")
         st.stop()
-        
-# Load the model once at startup
+
+# --- Load the model once at startup ---
 model = load_disease_model() 
 
-# --- FUNCTIONS ---
+# -------------------- FUNCTIONS --------------------
 
 def model_prediction(test_image):
-    # The model is already loaded and cached above, so we don't load it again here.
-    # model = tf.keras.models.load_model("trained_plant_disease_model.keras") 
-
-    # tf.keras.preprocessing.image.load_img can handle the file object from st.file_uploader
-    image = tf.keras.utils.load_img(test_image, target_size=(128, 128))
+    """Performs prediction using the loaded model."""
+    # The model object is already available globally from load_disease_model()
+    
+    # Use tf.keras.utils.load_img for reliable loading of file_uploader object
+    image = tf.keras.utils.load_img(test_image, target_size=(224, 224)) # Match training size
     input_arr = tf.keras.utils.img_to_array(image)
     input_arr = np.array([input_arr]) # convert single image to batch
+    
+    # Rescale the input array (EfficientNet was trained on 0-255 images and expects 0-1)
+    # Your training used rescale=1./255, so we apply it here:
+    input_arr = input_arr / 255.0 
+    
     predictions = model.predict(input_arr)
-    return np.argmax(predictions) # return index of max element
+    return np.argmax(predictions)
 
-# --- SIDEBAR & INITIAL DISPLAY ---
+# -------------------- INITIAL SETUP --------------------
 
 # Sidebar
 st.sidebar.title("AgriSens")
-app_mode = st.sidebar.selectbox("Select Page",["HOME","DISEASE RECOGNITION"])
+app_mode = st.sidebar.selectbox("Select Page", ["HOME", "DISEASE RECOGNITION"])
 
-# Load and display initial image (using robust path)
+# Load and display initial image
 try:
     img_filename = "Diseases.png"
     img_path = os.path.join(SCRIPT_DIR, img_filename)
     img = Image.open(img_path)
     st.image(img)
 except FileNotFoundError:
-    st.warning("Initial image 'Diseases.png' not found. Please upload it.")
+    st.warning("Initial image 'Diseases.png' not found. Check upload.")
 
-# --- MAIN LOGIC ---
+# -------------------- MAIN LOGIC --------------------
 
-# Main Page
-if(app_mode=="HOME"):
+if app_mode == "HOME":
     st.markdown("<h1 style='text-align: center;'>SMART DISEASE DETECTION", unsafe_allow_html=True)
-    
-# Prediction Page
-elif(app_mode=="DISEASE RECOGNITION"):
+
+elif app_mode == "DISEASE RECOGNITION":
     st.header("DISEASE RECOGNITION")
     
-    # st.file_uploader returns a file object or None
     test_image = st.file_uploader("Choose an Image:")
     
     if test_image is not None:
-        if(st.button("Show Image")):
-            # Streamlit displays the file object correctly
-            st.image(test_image, width=400) # Use a specific width instead of width=4
+        if st.button("Show Image"):
+            st.image(test_image, width=400)
 
-        # Predict button
-        if(st.button("Predict")):
+        if st.button("Predict"):
             st.snow()
             st.write("Our Prediction")
             
-            # Predict only if a file is uploaded
             try:
                 result_index = model_prediction(test_image)
             except Exception as e:
-                st.error(f"Prediction failed. Error: {e}")
+                st.error(f"Prediction failed. Error details: {e}")
                 st.stop()
                 
-            # Reading Labels
+            # Reading Labels (using the correct list from your previous code)
             class_name = ['Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
                           'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 
                           'Cherry_(including_sour)___healthy', 'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 
