@@ -4,7 +4,7 @@ import numpy as np
 def model_prediction(test_image):
     # Update line 5 in main.py to load the directory
     # main.py, line 6
-    model = tf.keras.models.load_model('plant_disease_model.h5')
+    model = tf.keras.models.load_model('plant_disease_model.keras')
     image = tf.keras.preprocessing.image.load_img(test_image,target_size=(128,128))
     input_arr = tf.keras.preprocessing.image.img_to_array(image)
     input_arr = np.array([input_arr]) #convert single image to batch
@@ -56,6 +56,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                       'Tomato___healthy']
 
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
