@@ -12,7 +12,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 @st.cache_resource # CRUCIAL: Caches the model so it only loads ONCE.
 def load_disease_model():
     """Loads the model using a robust, absolute path."""
-    model_filename = "plant_disease_model.h5"
+    model_filename = "plant_disease_model.keras"
     model_path = os.path.join(SCRIPT_DIR, model_filename)
     
     try:
@@ -104,3 +104,4 @@ elif app_mode == "DISEASE RECOGNITION":
             st.success("Model is Predicting it's a {}".format(class_name[result_index]))
     else:
         st.info("Please upload an image file to start prediction.")
+
