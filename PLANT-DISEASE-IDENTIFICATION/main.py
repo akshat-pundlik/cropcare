@@ -1,10 +1,38 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
+ import os
 def model_prediction(test_image):
     # Update line 5 in main.py to load the directory
     # main.py, line 6
-    model = tf.keras.models.load_model('plant_disease_model.h5')
+   
+
+# ... other imports
+
+# --- Define the Model Loading Function ---
+# Use @st.cache_resource if you are using Streamlit
+# @st.cache_resource 
+def load_disease_model():
+    # 1. Get the directory of the current script (main.py)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # 2. Construct the full, reliable path to the .h5 model file
+    # ENSURE THIS NAME IS EXACTLY THE FILE YOU UPLOADED
+    model_filename = 'plant_disease_model.h5' 
+    model_path = os.path.join(script_dir, model_filename)
+
+    # 3. Load the model
+    # The try/except is helpful for debugging the final error
+    try:
+        model = tf.keras.models.load_model(model_path)
+        return model
+    except Exception as e:
+        # This will print the exact path it failed to find
+        print(f"FATAL ERROR: Failed to load model. Looked for file at: {model_path}") 
+        raise e # Let the application crash, but with better info
+
+# --- Replace the old line 7 with the function call ---
+model = load_disease_model()
     image = tf.keras.preprocessing.image.load_img(test_image,target_size=(128,128))
     input_arr = tf.keras.preprocessing.image.img_to_array(image)
     input_arr = np.array([input_arr]) #convert single image to batch
@@ -56,6 +84,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                       'Tomato___healthy']
 
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
