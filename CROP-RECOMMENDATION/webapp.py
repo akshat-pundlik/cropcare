@@ -41,7 +41,20 @@ except FileNotFoundError:
 # width is used to set the width of an image
 st.image(img)
 
-df= pd.read_csv('Crop_recommendation.csv')
+import os
+import pandas as pd
+# ... other imports
+
+# Get the absolute directory of the current script (webapp.py)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Construct the full, reliable path to the CSV file
+# This assumes 'Crop_recommendation.csv' is in the SAME folder as webapp.py
+csv_filename = 'Crop_recommendation.csv'
+csv_path = os.path.join(script_dir, csv_filename)
+
+# Line 44
+df = pd.read_csv(csv_path)
 
 #features = df[['temperature', 'humidity', 'ph', 'rainfall']]
 X = df[['N', 'P','K','temperature', 'humidity', 'ph', 'rainfall']]
@@ -115,5 +128,6 @@ def main():
 ## Running the main function
 if __name__ == '__main__':
     main()
+
 
 
