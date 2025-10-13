@@ -19,8 +19,7 @@ from sklearn.preprocessing import LabelEncoder
 # Display Images
 # import Image from pillow to open images
 from PIL import Image
-import os
-from PIL import Image
+
 # ... other imports
 
 # Get the absolute directory of the current script (webapp.py)
@@ -41,8 +40,7 @@ except FileNotFoundError:
 # width is used to set the width of an image
 st.image(img)
 
-import os
-import pandas as pd
+
 # ... other imports
 
 # Get the absolute directory of the current script (webapp.py)
@@ -128,6 +126,7 @@ def main():
 ## Running the main function
 if __name__ == '__main__':
     main()
+
 
 
 
