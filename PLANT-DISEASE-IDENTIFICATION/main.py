@@ -1,7 +1,7 @@
 import streamlit as st
 import tensorflow as tf
 import numpy as np
- import os
+import os
 def model_prediction(test_image):
     # Update line 5 in main.py to load the directory
     # main.py, line 6
@@ -84,6 +84,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                       'Tomato___healthy']
 
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
