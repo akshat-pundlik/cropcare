@@ -1,139 +1,100 @@
-import streamlit as st
-import tensorflow as tf
-import numpy as np
 import os
-from PIL import Image
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow import keras
+# Using the specific keras utilities import path for broad compatibility
+from tensorflow.keras.utils import load_img, img_to_array 
 
 # -------------------- CONFIGURATION --------------------
 
-# Get the absolute directory of the current script (e.g., /path/to/PLANT-DISEASE-IDENTIFICATION/)
+# Get the absolute directory of the current script for robust path finding
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+MODEL_FILENAME = "plant_disease_model.keras"
 
-@st.cache_resource # CRUCIAL: Caches the model so it only loads ONCE per deployment.
-def load_disease_model():
-    """Loads the model using a robust, absolute path."""
-    
-    model_filename = "plant_disease_model.keras"
-    
-    # 💡 CORRECT PATH FIX: Use os.path.join to create a reliable absolute path.
-    # This path is relative to the directory of this script (main.py).
-    model_path = os.path.join(SCRIPT_DIR, model_filename)
+# Assume the model is in the same directory as this script.
+model_path = os.path.join(SCRIPT_DIR, MODEL_FILENAME)
+
+# --- Define Class Labels (CRITICAL: Must match training order) ---
+# NOTE: You MUST update this list with the EXACT and COMPLETE list of
+# all disease classes in the same order as your model was trained.
+class_names = [
+    "Apple___Black_rot",
+    "Apple___Cedar_apple_rust",
+    "Apple___healthy",
+    # ... add the remaining 35 class names here ...
+]
+
+# -------------------- 1. Load the model --------------------
+
+def load_disease_model(path):
+    """Loads the model, adding specific error handling for diagnosis."""
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Model file NOT found at: {path}")
     
     try:
-        # Check if the file exists before attempting to load
-        if not os.path.exists(model_path):
-            st.error(f"FATAL ERROR: Model file **NOT FOUND** at: {model_path}")
-            st.error("Please ensure 'plant_disease_model.keras' is uploaded to the same directory as this script.")
-            st.stop()
-
-        # Attempt to load the model
-        model = tf.keras.models.load_model(model_path)
+        # We load using keras.models.load_model as shown in your original file.
+        model = keras.models.load_model(path)
         return model
-    
     except Exception as e:
-        # Custom error message for file found but could not be loaded
-        st.error(f"FATAL ERROR: Could not load the model from **{model_path}**. ")
-        st.error("This usually means the **TensorFlow/Keras version** used here is incompatible with the version used to save the model.")
-        st.error(f"Underlying System Error: {e}")
-        st.stop()
+        # This error often points to version incompatibility, even if the file exists.
+        raise RuntimeError(f"Failed to load model from {path}. Check TensorFlow version compatibility. Details: {e}")
 
-# --- Load the model once at startup ---
-# This line will now stop the app if the model cannot be loaded.
-model = load_disease_model() 
-
-# -------------------- FUNCTIONS --------------------
-
-def model_prediction(test_image):
-    """Performs prediction using the loaded model."""
-    
-    # Use tf.keras.utils.load_img for reliable loading of file_uploader object
-    # The file_uploader object must be passed correctly here
-    try:
-        # We need to save the uploaded file temporarily to disk 
-        # because tf.keras.utils.load_img expects a file path or a string.
-        with open("temp_image.png", "wb") as f:
-            f.write(test_image.getbuffer())
-        
-        image = tf.keras.utils.load_img("temp_image.png", target_size=(224, 224)) # Match training size
-        
-        # Clean up the temporary file
-        os.remove("temp_image.png") 
-        
-        input_arr = tf.keras.utils.img_to_array(image)
-        input_arr = np.array([input_arr]) # convert single image to batch
-        
-        # Rescale the input array
-        input_arr = input_arr / 255.0  
-        
-        predictions = model.predict(input_arr)
-        return np.argmax(predictions)
-    
-    except Exception as e:
-        # The original code's prediction block was missing file handling for Streamlit's UploadedFile object.
-        raise RuntimeError(f"Error during prediction or image processing: {e}")
-
-
-# -------------------- INITIAL SETUP --------------------
-
-# Sidebar
-st.sidebar.title("AgriSens")
-app_mode = st.sidebar.selectbox("Select Page", ["HOME", "DISEASE RECOGNITION"])
-
-# Load and display initial image
 try:
-    img_filename = "Diseases.png"
-    img_path = os.path.join(SCRIPT_DIR, img_filename)
-    img = Image.open(img_path)
-    st.image(img)
-except FileNotFoundError:
-    st.warning("Initial image 'Diseases.png' not found. Please upload it to the script directory.")
-
-# -------------------- MAIN LOGIC --------------------
-
-if app_mode == "HOME":
-    st.markdown("<h1 style='text-align: center;'>SMART DISEASE DETECTION", unsafe_allow_html=True)
-
-elif app_mode == "DISEASE RECOGNITION":
-    st.header("DISEASE RECOGNITION")
+    print(f"Attempting to load model from: {model_path}")
+    model = load_disease_model(model_path)
+    model.summary()
+    print("\nModel loaded successfully.")
     
-    # Streamlit UploadedFile object
-    test_image = st.file_uploader("Choose an Image:")
-    
-    if test_image is not None:
-        
-        # Show Image button logic
-        if st.button("Show Image"):
-            st.image(test_image, width=400)
+except (FileNotFoundError, RuntimeError) as e:
+    print(f"FATAL ERROR: {e}")
+    # If the file is truly corrupted, loading will fail here.
+    exit(1)
 
-        # Predict button logic
-        if st.button("Predict"):
-            st.snow()
-            st.write("Our Prediction")
-            
-            try:
-                # model_prediction now expects the Streamlit UploadedFile object
-                result_index = model_prediction(test_image)
-            except RuntimeError as e:
-                st.error(f"Prediction failed. {e}")
-                # Don't st.stop() here, allow the user to try a new upload.
-                
-                # --- Disease Labels ---
-                # Reading Labels (The labels array must be defined outside the try block for scope)
-            class_name = ['Apple___Apple_scab', 'Apple___Black_rot', 'Apple___Cedar_apple_rust', 'Apple___healthy',
-                          'Blueberry___healthy', 'Cherry_(including_sour)___Powdery_mildew', 
-                          'Cherry_(including_sour)___healthy', 'Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot', 
-                          'Corn_(maize)___Common_rust_', 'Corn_(maize)___Northern_Leaf_Blight', 'Corn_(maize)___healthy', 
-                          'Grape___Black_rot', 'Grape___Esca_(Black_Measles)', 'Grape___Leaf_blight_(Isariopsis_Leaf_Spot)', 
-                          'Grape___healthy', 'Orange___Haunglongbing_(Citrus_greening)', 'Peach___Bacterial_spot',
-                          'Peach___healthy', 'Pepper,_bell___Bacterial_spot', 'Pepper,_bell___healthy', 
-                          'Potato___Early_blight', 'Potato___Late_blight', 'Potato___healthy', 
-                          'Raspberry___healthy', 'Soybean___healthy', 'Squash___Powdery_mildew', 
-                          'Strawberry___Leaf_scorch', 'Strawberry___healthy', 'Tomato___Bacterial_spot', 
-                          'Tomato___Early_blight', 'Tomato___Late_blight', 'Tomato___Leaf_Mold', 
-                          'Tomato___Septoria_leaf_spot', 'Tomato___Spider_mites Two-spotted_spider_mite', 
-                          'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
-                          'Tomato___healthy']
-            
-            st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
+# -------------------- 3. Utility: load and preprocess a single image --------------------
+
+def load_and_preprocess(img_path, target_size=(224, 224)):
+    """Loads, resizes, normalizes, and expands dimensions of an image."""
+    # Use load_img from the imported utility
+    img = load_img(img_path, target_size=target_size)
+    img_array = img_to_array(img)
+    img_array = img_array / 255.0  # normalize
+    img_array = np.expand_dims(img_array, axis=0)  # make batch of 1
+    return img_array
+
+# -------------------- 4. Predict on a sample image --------------------
+# NOTE: Replace this path with an actual test image path available in your environment!
+TEST_IMAGE_PATH = "test/Apple___Black_rot/0ef9...jpg" 
+
+if os.path.exists(TEST_IMAGE_PATH):
+    print(f"\nAttempting prediction on: {TEST_IMAGE_PATH}")
+    img_arr = load_and_preprocess(TEST_IMAGE_PATH, target_size=(224,224))
+
+    pred = model.predict(img_arr)
+    pred_class_idx = np.argmax(pred[0])
+    pred_confidence = pred[0][pred_class_idx]
+
+    print("Predicted class index:", pred_class_idx)
+    print(f"Confidence: {pred_confidence:.4f}")
+    
+    # Check if class_names has enough entries
+    if pred_class_idx < len(class_names):
+        pred_class_name = class_names[pred_class_idx]
+        print(f"Predicted disease / class: {pred_class_name}")
+
+        # -------------------- 5. Display image + predicted label --------------------
+        plt.imshow(load_img(TEST_IMAGE_PATH))
+        plt.axis("off")
+        plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
+        plt.show()
     else:
-        st.info("Please upload an image file to start prediction.")
+        print(f"WARNING: Prediction index {pred_class_idx} is out of bounds for the defined class_names list (length {len(class_names)}). Update class_names.")
+
+else:
+    print(f"\nSkipping prediction: Test image not found at {TEST_IMAGE_PATH}")
+    print("Replace TEST_IMAGE_PATH with a valid image file to test.")
+
+# -------------------- 6. (Optional) Batch prediction / Evaluation code from step 6 and 7 --------------------
+# The functions for batch prediction and evaluation are not included here as they require 
+# a full test directory structure which may not be set up for a single run.
+# They can be re-added once the core model loading is confirmed working.
