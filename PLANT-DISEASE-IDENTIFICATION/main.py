@@ -13,7 +13,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 def load_disease_model():
     """Loads the model using a robust, absolute path."""
     model_filename = "plant_disease_model.keras"
-    model_path = os.path.join(SCRIPT_DIR, model_filename)
+    model_path = "/mount/src/cropcare/PLANT-DISEASE-IDENTIFICATION/plant_disease_model.keras"
     
     try:
         # Load the model using the stable HDF5 format and robust path
@@ -104,4 +104,5 @@ elif app_mode == "DISEASE RECOGNITION":
             st.success("Model is Predicting it's a {}".format(class_name[result_index]))
     else:
         st.info("Please upload an image file to start prediction.")
+
 
