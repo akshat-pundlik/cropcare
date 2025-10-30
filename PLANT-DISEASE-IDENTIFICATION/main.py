@@ -2,7 +2,16 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 def model_prediction(test_image):
-    model = tf.keras.models.load_model("trained_plant_disease_model.keras")
+    import os
+# Get the absolute path to the directory containing main.py
+BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
+
+# Construct the full absolute path
+MODEL_NAME = "trained_plant_disease_model.keras" # <-- Adjust this name if needed!
+model_path = os.path.join(BASE_DIR, MODEL_NAME)
+
+# Try loading the model with the full path
+model = tf.keras.models.load_model(model_path)
     image = tf.keras.preprocessing.image.load_img(test_image,target_size=(128,128))
     input_arr = tf.keras.preprocessing.image.img_to_array(image)
     input_arr = np.array([input_arr]) #convert single image to batch
@@ -53,6 +62,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                     'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
                       'Tomato___healthy']
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
