@@ -8,7 +8,7 @@ streamlit
 joblib
 matplotlib
 seaborn
-keras==2.20.0
+keras
 tensorflow==2.20.0
 
 
