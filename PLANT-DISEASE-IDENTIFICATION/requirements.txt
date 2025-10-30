@@ -8,8 +8,9 @@ streamlit
 joblib
 matplotlib
 seaborn
-keras>=3.0
+keras==2.16.0
 tensorflow==2.16.1
+
 
 
 
