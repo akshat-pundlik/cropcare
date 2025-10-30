@@ -7,7 +7,7 @@ import os
 # --- CONFIGURATION ---
 
 # ✅ Your model file name is correct. Ensure it's in the same folder as this script.
-MODEL_PATH = 'trained_plant_disease_model.keras'
+MODEL_PATH = os.path.abspath('trained_plant_disease_model.keras')
 
 # ✅ Model input size is confirmed to be 128x128 from the model metadata.
 IMG_HEIGHT = 128
@@ -106,3 +106,4 @@ if __name__ == "__main__":
         predict_disease(TEST_IMAGE_PATH)
     else:
         print(f"FATAL ERROR: Model file '{MODEL_PATH}' not found. Place the .keras file in the same directory.")
+
