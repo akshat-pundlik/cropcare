@@ -2,7 +2,7 @@ import streamlit as st
 import tensorflow as tf
 import numpy as np
 def model_prediction(test_image):
-    import os
+import os
 # Get the absolute path to the directory containing main.py
 BASE_DIR = os.path.dirname(os.path.abspath(__file__)) 
 
@@ -62,6 +62,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                     'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
                       'Tomato___healthy']
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
