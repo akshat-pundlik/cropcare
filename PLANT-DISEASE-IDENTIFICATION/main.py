@@ -5,7 +5,7 @@ import os
 print(os.system('pwd'))
 print(os.system('ls'))
 def model_prediction(test_image):
-    model = tf.keras.models.load_model("akshat-pundlik/cropcare/master/PLANT-DISEASE-IDENTIFICATION/trained_plant_disease_model.keras")
+    model = tf.keras.models.load_model("PLANT-DISEASE-IDENTIFICATION/trained_plant_disease_model.keras")
     image = tf.keras.preprocessing.image.load_img(test_image,target_size=(128,128))
     input_arr = tf.keras.preprocessing.image.img_to_array(image)
     input_arr = np.array([input_arr]) #convert single image to batch
@@ -56,6 +56,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                     'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
                       'Tomato___healthy']
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
