@@ -4,7 +4,7 @@ import numpy as np
 import os
 print(os.system('pwd'))
 print(os.system('ls'))
-print(os.system('ls ./PLANT-DISEASE-IDENTIFICATION
+print(os.system("ls"./PLANT-DISEASE-IDENTIFICATION
 '))
 def model_prediction(test_image):
     model = tf.keras.models.load_model("PLANT-DISEASE-IDENTIFICATION/trained_plant_disease_model.keras")
@@ -58,6 +58,7 @@ elif(app_mode=="DISEASE RECOGNITION"):
                     'Tomato___Target_Spot', 'Tomato___Tomato_Yellow_Leaf_Curl_Virus', 'Tomato___Tomato_mosaic_virus',
                       'Tomato___healthy']
         st.success("Model is Predicting it's a {}".format(class_name[result_index]))
+
 
 
 
