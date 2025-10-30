@@ -3,25 +3,28 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow import keras
 # Using the specific keras utilities import path for broad compatibility
-from tensorflow.keras.utils import load_img, img_to_array 
+from tensorflow.keras.utils import load_img, img_to_array
 
 # -------------------- CONFIGURATION --------------------
 
 # Get the absolute directory of the current script for robust path finding
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_FILENAME = "trained_plant_disease_model.keras"
 
-# Assume the model is in the same directory as this script.
-model_path = "trained_plant_disease_model.keras"
+# The model path is now explicitly defined in the project root
+MODEL_FILENAME = "trained_plant_disease_model.keras"
+model_path = MODEL_FILENAME
 
 # --- Define Class Labels (CRITICAL: Must match training order) ---
-# NOTE: You MUST update this list with the EXACT and COMPLETE list of
-# all disease classes in the same order as your model was trained.
+# NOTE: This is an incomplete example. YOU MUST complete this list with 
+# the EXACT and COMPLETE list of all 38 (or total) class names.
 class_names = [
     "Apple___Black_rot",
     "Apple___Cedar_apple_rust",
     "Apple___healthy",
-    # ... add the remaining 35 class names here ...
+    "Apple___scab",
+    "Cherry_(including_sour)___healthy",
+    "Cherry_(including_sour)___Powdery_mildew",
+    # ... ADD REMAINING 32+ CLASS NAMES HERE ...
 ]
 
 # -------------------- 1. Load the model --------------------
@@ -32,11 +35,11 @@ def load_disease_model(path):
         raise FileNotFoundError(f"Model file NOT found at: {path}")
     
     try:
-        # We load using keras.models.load_model as shown in your original file.
+        # Load the model
         model = keras.models.load_model(path)
         return model
     except Exception as e:
-        # This error often points to version incompatibility, even if the file exists.
+        # This error often points to version incompatibility or file corruption.
         raise RuntimeError(f"Failed to load model from {path}. Check TensorFlow version compatibility. Details: {e}")
 
 try:
@@ -47,7 +50,6 @@ try:
     
 except (FileNotFoundError, RuntimeError) as e:
     print(f"FATAL ERROR: {e}")
-    # If the file is truly corrupted, loading will fail here.
     exit(1)
 
 
@@ -55,7 +57,10 @@ except (FileNotFoundError, RuntimeError) as e:
 
 def load_and_preprocess(img_path, target_size=(224, 224)):
     """Loads, resizes, normalizes, and expands dimensions of an image."""
-    # Use load_img from the imported utility
+    # Check if image file exists before trying to load it
+    if not os.path.exists(img_path):
+        raise FileNotFoundError(f"Test image NOT found at: {img_path}")
+        
     img = load_img(img_path, target_size=target_size)
     img_array = img_to_array(img)
     img_array = img_array / 255.0  # normalize
@@ -63,40 +68,40 @@ def load_and_preprocess(img_path, target_size=(224, 224)):
     return img_array
 
 # -------------------- 4. Predict on a sample image --------------------
-# NOTE: Replace this path with an actual test image path available in your environment!
-TEST_IMAGE_PATH = "test/Apple___Black_rot/0ef9...jpg" 
+# NOTE: YOU MUST REPLACE THIS PATH with an actual, valid image path!
+TEST_IMAGE_PATH = "test_images/sample_apple_rot.jpg" # EXAMPLE PATH
 
 if os.path.exists(TEST_IMAGE_PATH):
-    print(f"\nAttempting prediction on: {TEST_IMAGE_PATH}")
-    img_arr = load_and_preprocess(TEST_IMAGE_PATH, target_size=(224,224))
+    try:
+        print(f"\nAttempting prediction on: {TEST_IMAGE_PATH}")
+        img_arr = load_and_preprocess(TEST_IMAGE_PATH, target_size=(224,224))
 
-    pred = model.predict(img_arr)
-    pred_class_idx = np.argmax(pred[0])
-    pred_confidence = pred[0][pred_class_idx]
+        # Perform prediction
+        pred = model.predict(img_arr)
+        pred_class_idx = np.argmax(pred[0])
+        pred_confidence = pred[0][pred_class_idx]
 
-    print("Predicted class index:", pred_class_idx)
-    print(f"Confidence: {pred_confidence:.4f}")
-    
-    # Check if class_names has enough entries
-    if pred_class_idx < len(class_names):
-        pred_class_name = class_names[pred_class_idx]
-        print(f"Predicted disease / class: {pred_class_name}")
+        print("Predicted class index:", pred_class_idx)
+        print(f"Confidence: {pred_confidence:.4f}")
+        
+        # Check if class_names has enough entries
+        if pred_class_idx < len(class_names):
+            pred_class_name = class_names[pred_class_idx]
+            print(f"Predicted disease / class: {pred_class_name}")
 
-        # -------------------- 5. Display image + predicted label --------------------
-        plt.imshow(load_img(TEST_IMAGE_PATH))
-        plt.axis("off")
-        plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
-        plt.show()
-    else:
-        print(f"WARNING: Prediction index {pred_class_idx} is out of bounds for the defined class_names list (length {len(class_names)}). Update class_names.")
+            # -------------------- 5. Display image + predicted label --------------------
+            plt.imshow(load_img(TEST_IMAGE_PATH))
+            plt.axis("off")
+            plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
+            plt.show()
+        else:
+            print(f"WARNING: Prediction index {pred_class_idx} is out of bounds for the defined class_names list (length {len(class_names)}). You MUST update class_names.")
+
+    except FileNotFoundError as e:
+        print(f"FATAL ERROR: {e}")
+    except Exception as e:
+        print(f"An unexpected error occurred during prediction: {e}")
 
 else:
     print(f"\nSkipping prediction: Test image not found at {TEST_IMAGE_PATH}")
-    print("Replace TEST_IMAGE_PATH with a valid image file to test.")
-
-# -------------------- 6. (Optional) Batch prediction / Evaluation code from step 6 and 7 --------------------
-# The functions for batch prediction and evaluation are not included here as they require 
-# a full test directory structure which may not be set up for a single run.
-# They can be re-added once the core model loading is confirmed working.
-
-
+    print("ACTION REQUIRED: Replace TEST_IMAGE_PATH with a valid image file to test.")
