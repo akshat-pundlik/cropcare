@@ -1,184 +1,119 @@
-import tensorflow as tf
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-import numpy as np
+# plant_disease_inference.ipynb
+
+# %% [markdown]
+# # Plant Disease Prediction with pre-trained model
+
+# %% [code]
 import os
-import datetime
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow import keras
+from tensorflow.keras.preprocessing import image
 
-# --- CONFIGURATION ---
-# 🚨 1. DATASET PATHS: Change this to the main folder containing your plant disease images.
-# Inside this folder, you should have subfolders for each class (e.g., 'Apple___Healthy', 'Corn___Rust').
-DATA_DIR = 'path/to/your/PlantVillage_Dataset' 
+# %% [markdown]
+# ## 1. Load the model
 
-# 🚨 2. NUMBER OF CLASSES: Update this with the total count of disease/healthy classes you have (e.g., 38).
-NUM_CLASSES = 38 
+# %% [code]
+model_path = "plant_disease_model.keras"  # adjust path if needed
+model = keras.models.load_model(model_path)
+model.summary()
 
-# 3. TRAINING PARAMETERS (Adjust as needed)
-BATCH_SIZE = 32
-IMG_HEIGHT = 128
-IMG_WIDTH = 128
-EPOCHS = 20
-MODEL_NAME = 'trained_plant_disease_model.keras'
-# ---------------------
+# %% [markdown]
+# ## 2. Prepare class labels
+# You need a mapping from numeric class indices to disease names.  
+# Ideally from the original training (train directory names).
 
+# Example:
+class_names = [
+    "Apple___Black_rot",
+    "Apple___Cedar_apple_rust",
+    "Apple___healthy",
+    # … add all classes in same order as training
+]
 
-def create_data_generators(data_dir, img_height, img_width, batch_size):
-    """
-    Sets up data generators for training and validation, including augmentation.
-    Assumes your data directory has 'train' and 'valid' subdirectories.
-    """
-    
-    # --- Data Augmentation for Training ---
-    # This helps the model generalize better by seeing varied images.
-    train_datagen = ImageDataGenerator(
-        rescale=1./255,                 # Normalize pixel values
-        rotation_range=30,              # Rotate images by up to 30 degrees
-        zoom_range=0.2,                 # Zoom in/out by up to 20%
-        width_shift_range=0.1,          # Shift images horizontally
-        height_shift_range=0.1,         # Shift images vertically
-        shear_range=0.1,                # Apply shear transformation
-        horizontal_flip=True,           # Flip images horizontally
-        fill_mode='nearest',            # Fill newly created pixels
-        validation_split=0.2            # Use 20% of data for validation
-    )
-    
-    # --- Data Scaling for Validation ---
-    # Validation data is only scaled, not augmented.
-    valid_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)
+# %% [markdown]
+# ## 3. Utility: load and preprocess a single image
 
-    print("Loading Training Data...")
-    train_generator = train_datagen.flow_from_directory(
-        data_dir,
-        target_size=(img_height, img_width),
-        batch_size=batch_size,
-        class_mode='categorical',       # Required for multi-class classification
-        subset='training'
-    )
+# %% [code]
+def load_and_preprocess(img_path, target_size=(224, 224)):
+    img = image.load_img(img_path, target_size=target_size)
+    img_array = image.img_to_array(img)
+    img_array = img_array / 255.0  # normalize
+    img_array = np.expand_dims(img_array, axis=0)  # make batch of 1
+    return img_array
 
-    print("Loading Validation Data...")
-    validation_generator = valid_datagen.flow_from_directory(
-        data_dir,
-        target_size=(img_height, img_width),
-        batch_size=batch_size,
-        class_mode='categorical',
-        subset='validation'
-    )
-    
-    # Save the class names/indices for later use (e.g., in prediction script)
-    # The keys in this dictionary are the class names.
-    class_names = list(train_generator.class_indices.keys())
-    print("\nDetected Class Names (in order):")
-    for i, name in enumerate(class_names):
-        print(f"  {i}: {name}")
-        
-    # You may want to save this list to a file here!
-    
-    return train_generator, validation_generator
+# %% [markdown]
+# ## 4. Predict on a sample image
 
+# %% [code]
+test_img_path = "test/Apple___Black_rot/0ef9...jpg"  # adjust to an actual test image path
+img_arr = load_and_preprocess(test_img_path, target_size=(224,224))
 
-def create_model(num_classes, img_height, img_width):
-    """
-    Defines the Convolutional Neural Network architecture.
-    """
-    model = Sequential([
-        # Input layer (inferred from your .keras metadata)
-        tf.keras.Input(shape=(img_height, img_width, 3)),
-        
-        # --- Feature Extraction Layers ---
-        # 1st Conv Block (inferred from your .keras metadata)
-        Conv2D(32, (3, 3), activation='relu', padding='same', name='conv2d_1'),
-        MaxPooling2D((2, 2)),
-        
-        # 2nd Conv Block
-        Conv2D(64, (3, 3), activation='relu', padding='same'),
-        MaxPooling2D((2, 2)),
-        
-        # 3rd Conv Block
-        Conv2D(128, (3, 3), activation='relu', padding='same'),
-        MaxPooling2D((2, 2)),
-        
-        # 4th Conv Block
-        Conv2D(256, (3, 3), activation='relu', padding='same'),
-        MaxPooling2D((2, 2)),
-        
-        # --- Classifier Layers ---
-        Flatten(),                  # Prepare for Dense layers
-        Dropout(0.5),               # Regularization to prevent overfitting
-        Dense(512, activation='relu'),
-        
-        # Output Layer: Uses 'softmax' for multi-class probability output
-        Dense(num_classes, activation='softmax')
-    ], name='Plant_Disease_Classifier')
-    
-    return model
+pred = model.predict(img_arr)
+pred_class_idx = np.argmax(pred[0])
+pred_confidence = pred[0][pred_class_idx]
 
+print("Predicted class index:", pred_class_idx)
+print("Confidence:", pred_confidence)
 
-def compile_and_train(model, train_generator, validation_generator, epochs):
-    """
-    Compiles the model and starts the training process.
-    """
-    # --- Model Compilation ---
-    model.compile(
-        optimizer='adam',                               # Adaptive Moment Estimation (great default)
-        loss='categorical_crossentropy',                # Standard loss for multi-class classification
-        metrics=['accuracy']
-    )
+pred_class_name = class_names[pred_class_idx]
+print("Predicted disease / class:", pred_class_name)
 
-    model.summary()
-    
-    # --- Callbacks ---
-    # Save the best model during training based on validation accuracy
-    checkpoint_filepath = 'best_model_checkpoint'
-    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
-        filepath=checkpoint_filepath,
-        save_weights_only=False,
-        monitor='val_accuracy',
-        mode='max',
-        save_best_only=True
-    )
+# %% [markdown]
+# ## 5. Display image + predicted label
 
-    # Stop training early if validation accuracy stops improving
-    early_stopping_callback = tf.keras.callbacks.EarlyStopping(
-        monitor='val_loss', 
-        patience=5,
-        restore_best_weights=True
-    )
-    
-    # --- Model Training ---
-    print("\nStarting model training...")
-    history = model.fit(
-        train_generator,
-        steps_per_epoch=train_generator.samples // train_generator.batch_size,
-        epochs=epochs,
-        validation_data=validation_generator,
-        validation_steps=validation_generator.samples // validation_generator.batch_size,
-        callbacks=[model_checkpoint_callback, early_stopping_callback]
-    )
-    
-    return history
+# %% [code]
+plt.imshow(image.load_img(test_img_path))
+plt.axis("off")
+plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
+plt.show()
 
+# %% [markdown]
+# ## 6. Batch prediction on a folder
 
-# --- MAIN EXECUTION BLOCK ---
-if __name__ == "__main__":
-    
-    # 1. Setup Data Generators
-    train_gen, valid_gen = create_data_generators(DATA_DIR, IMG_HEIGHT, IMG_WIDTH, BATCH_SIZE)
-    
-    # 2. Create Model
-    model = create_model(NUM_CLASSES, IMG_HEIGHT, IMG_WIDTH)
-    
-    # 3. Train Model
-    _ = compile_and_train(model, train_gen, valid_gen, EPOCHS)
-    
-    # 4. Save Final Model
-    # The ModelCheckpoint saved the best version; we load and save it to the desired final file name.
-    print(f"\nLoading best weights and saving final model as: {MODEL_NAME}")
-    try:
-        # Load the weights from the best checkpoint
-        best_model = tf.keras.models.load_model('best_model_checkpoint')
-        best_model.save(MODEL_NAME)
-        print("Model training and saving complete!")
-    except Exception as e:
-        print(f"Error saving final model: {e}")
-        print("Please check file permissions or disk space.")
+# %% [code]
+def predict_on_folder(folder_path):
+    results = []
+    for fname in os.listdir(folder_path):
+        if fname.lower().endswith((".jpg", ".png", ".jpeg")):
+            full = os.path.join(folder_path, fname)
+            arr = load_and_preprocess(full)
+            pred = model.predict(arr)
+            idx = np.argmax(pred[0])
+            conf = pred[0][idx]
+            results.append((fname, class_names[idx], conf))
+    return results
+
+folder = "test/Apple___healthy"  # example
+res = predict_on_folder(folder)
+for fname, cls, conf in res:
+    print(f"{fname} → {cls} ({conf:.2f})")
+
+# %% [markdown]
+# ## 7. (Optional) Evaluate accuracy across test set
+
+# You could loop through all test subfolders, compare predicted vs true labels, and compute accuracy.
+
+# %% [code]
+def evaluate_test_dir(test_dir):
+    total = 0
+    correct = 0
+    for class_name in os.listdir(test_dir):
+        class_folder = os.path.join(test_dir, class_name)
+        if not os.path.isdir(class_folder):
+            continue
+        for fname in os.listdir(class_folder):
+            if not fname.lower().endswith((".jpg", ".png", ".jpeg")):
+                continue
+            img_path = os.path.join(class_folder, fname)
+            arr = load_and_preprocess(img_path)
+            pred = model.predict(arr)
+            idx = np.argmax(pred[0])
+            if class_names[idx] == class_name:
+                correct += 1
+            total += 1
+    print("Test Accuracy = {:.2f}%".format(100 * correct / total))
+
+test_dir = "test"
+evaluate_test_dir(test_dir)
+
