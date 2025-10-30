@@ -5,23 +5,27 @@ from PIL import Image
 import os
 
 # --- CONFIGURATION ---
-# Path to your saved model file
+
+# ✅ Your model file name is correct. Ensure it's in the same folder as this script.
 MODEL_PATH = 'trained_plant_disease_model.keras'
 
-# Define the input image size (from the model metadata: 128x128)
+# ✅ Model input size is confirmed to be 128x128 from the model metadata.
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
 
-# !!! CRITICAL: REPLACE THESE WITH YOUR ACTUAL DISEASE CLASS NAMES !!!
-# Ensure the order is exactly the same as when you trained the model.
+# 🚨 CRITICAL: YOU MUST UPDATE THIS LIST 🚨
+# Replace these placeholders with the 38 (or however many) specific class names 
+# your model was trained to recognize, in the exact order they were trained.
 CLASS_NAMES = [
-    'Class_01_Apple_Black_rot',
-    'Class_02_Apple_Healthy',
-    'Class_03_Corn_Common_rust',
-    'Class_04_Corn_Healthy',
-    # ... ADD ALL YOUR CLASSES HERE ...
-    'Class_N_Tomato_Late_blight',
-    'Class_N+1_Tomato_Mosaic_virus'
+    'Apple__Black_rot',
+    'Apple__Healthy',
+    'Corn_(maize)__Common_rust',
+    'Corn_(maize)__healthy',
+    'Potato__Late_blight',
+    'Potato__healthy',
+    # ... Add ALL your disease classes here ...
+    'Tomato__Mosaic_virus',
+    'Tomato__healthy'
 ]
 # ---------------------
 
@@ -34,7 +38,7 @@ def load_and_preprocess_image(img_path):
 
     print(f"Loading and preprocessing image: {img_path}")
     try:
-        # Load the image
+        # Load the image and ensure it's RGB
         img = Image.open(img_path).convert('RGB')
 
         # Resize the image to 128x128
@@ -59,13 +63,12 @@ def load_and_preprocess_image(img_path):
 def predict_disease(image_path_to_predict):
     """Loads the model and predicts the class of the input image."""
     try:
-        # Load the saved Keras model
         print("Loading model...")
         model = load_model(MODEL_PATH)
         print("Model loaded successfully.")
     except Exception as e:
         print(f"Error loading model: {e}")
-        print("Please ensure the file 'trained_plant_disease_model.keras' is in the correct path.")
+        print(f"Ensure '{MODEL_PATH}' is correct and in this directory.")
         return
 
     # 1. Prepare the image
@@ -76,14 +79,11 @@ def predict_disease(image_path_to_predict):
 
     # 2. Make the prediction
     print("Making prediction...")
-    # model.predict returns probabilities for each class
     predictions = model.predict(input_data)
 
     # 3. Interpret the result
-    # Get the index of the highest probability
     predicted_class_index = np.argmax(predictions[0])
     
-    # Get the corresponding class name
     if 0 <= predicted_class_index < len(CLASS_NAMES):
         predicted_class_name = CLASS_NAMES[predicted_class_index]
         confidence = np.max(predictions[0]) * 100
@@ -93,15 +93,15 @@ def predict_disease(image_path_to_predict):
         print(f"Confidence: **{confidence:.2f}%**")
         print("-------------------------\n")
     else:
-        print(f"Error: Predicted class index {predicted_class_index} is out of bounds for the defined CLASS_NAMES list.")
+        print(f"Error: The model predicted class index {predicted_class_index}, but your CLASS_NAMES list only has {len(CLASS_NAMES)} items. Please correct your CLASS_NAMES list.")
 
 
 # --- EXECUTION BLOCK ---
 if __name__ == "__main__":
-    # >>> UPDATE THIS PATH TO YOUR IMAGE FILE <<<
+    # 🚨 CRITICAL: UPDATE THIS PATH 🚨
+    # Change this to the actual path of the image you want to classify (e.g., 'test_images/apple_leaf.jpg')
     TEST_IMAGE_PATH = 'path/to/your/leaf_image.jpg'
 
-    # Check if the model file exists before running
     if os.path.exists(MODEL_PATH):
         predict_disease(TEST_IMAGE_PATH)
     else:
