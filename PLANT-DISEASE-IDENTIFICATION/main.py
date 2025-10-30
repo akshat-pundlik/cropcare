@@ -12,7 +12,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 MODEL_FILENAME = "plant_disease_model.keras"
 
 # Assume the model is in the same directory as this script.
-model_path = os.path.join(SCRIPT_DIR, MODEL_FILENAME)
+model_path = "trained_plant_disease_model.keras"
 
 # --- Define Class Labels (CRITICAL: Must match training order) ---
 # NOTE: You MUST update this list with the EXACT and COMPLETE list of
@@ -98,3 +98,4 @@ else:
 # The functions for batch prediction and evaluation are not included here as they require 
 # a full test directory structure which may not be set up for a single run.
 # They can be re-added once the core model loading is confirmed working.
+
