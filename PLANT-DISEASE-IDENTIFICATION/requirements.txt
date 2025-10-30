@@ -9,7 +9,8 @@ joblib
 matplotlib
 seaborn
 keras 
-tensorflow==2.19.0
+tensorflow==2.20.0
+
 
 
 
