@@ -9,7 +9,7 @@ from tensorflow.keras.utils import load_img, img_to_array
 
 # Get the absolute directory of the current script for robust path finding
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-MODEL_FILENAME = "plant_disease_model.keras"
+MODEL_FILENAME = "trained_plant_disease_model.keras"
 
 # Assume the model is in the same directory as this script.
 model_path = "trained_plant_disease_model.keras"
@@ -98,4 +98,5 @@ else:
 # The functions for batch prediction and evaluation are not included here as they require 
 # a full test directory structure which may not be set up for a single run.
 # They can be re-added once the core model loading is confirmed working.
+
 
