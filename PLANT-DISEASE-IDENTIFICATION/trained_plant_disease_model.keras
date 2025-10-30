@@ -8,37 +8,37 @@ import os
 # 1. MODEL PATH: Ensure this file is in the same directory as this script.
 MODEL_PATH = 'trained_plant_disease_model.keras'
 
-# 2. IMAGE DIMENSIONS: Confirmed from your model metadata.
+# 2. IMAGE DIMENSIONS: Confirmed from your model metadata (128x128).
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
 
-# 🚨 3. CRITICAL: REPLACE THIS LIST 🚨
-# Use the exact class names in the exact order determined during model training.
-# Example: If your model was trained on 38 classes, this list must have 38 items.
+# 🚨 3. CRITICAL: REPLACE THIS LIST WITH YOUR ACTUAL CLASS NAMES 🚨
+# The order MUST match the order used when the model was trained!
 CLASS_NAMES = [
     'Apple__Black_rot',
     'Apple__Healthy',
     'Corn_(maize)__Common_rust',
     'Corn_(maize)__healthy',
-    # ... List all 38 (or your specific count) classes here ...
+    # List ALL of your disease/healthy categories here!
     'Tomato__Mosaic_virus',
     'Tomato__healthy'
 ]
 
-# 🚨 4. TEST IMAGE PATH: Update this to a real image file path on your computer.
+# 🚨 4. TEST IMAGE PATH: Update this to the actual path of the image you want to test.
+# Example: 'C:/Users/YourName/Desktop/test_images/sick_leaf.jpg'
 TEST_IMAGE_PATH = 'path/to/your/test_leaf_image.jpg'
 # ------------------------------------------
 
 
 def load_and_preprocess_image(img_path):
-    """Loads an image, resizes it, converts it to a normalized batch tensor."""
+    """Loads an image, resizes it, and converts it to a normalized batch tensor."""
     if not os.path.exists(img_path):
         print(f"Error: Image file not found at {img_path}")
         return None
 
     print(f"Loading and preprocessing image: {img_path}")
     try:
-        # Load the image and ensure it's RGB
+        # Load the image and ensure it has 3 color channels (RGB)
         img = Image.open(img_path).convert('RGB')
 
         # Resize the image to 128x128
@@ -50,7 +50,7 @@ def load_and_preprocess_image(img_path):
         # Add the batch dimension (1, 128, 128, 3)
         img_array = np.expand_dims(img_array, axis=0)
 
-        # Normalize the pixel values (0-255 -> 0-1)
+        # Normalize the pixel values (0-255 -> 0-1) as done during training
         normalized_img_array = img_array / 255.0
 
         return normalized_img_array
@@ -64,12 +64,11 @@ def predict_disease(image_path_to_predict):
     """Loads the model and predicts the class of the input image."""
     try:
         print("Loading model...")
-        # The load_model function now correctly looks for the .keras file
         model = load_model(MODEL_PATH) 
         print("Model loaded successfully.")
     except Exception as e:
         print(f"Error loading model: {e}")
-        print(f"Ensure '{MODEL_PATH}' is correct and in this directory.")
+        print(f"FATAL: Ensure '{MODEL_PATH}' is correct and in the same directory as this script.")
         return
 
     # 1. Prepare the image
@@ -80,6 +79,7 @@ def predict_disease(image_path_to_predict):
 
     # 2. Make the prediction
     print("Making prediction...")
+    # model.predict returns probabilities for each class
     predictions = model.predict(input_data)
 
     # 3. Interpret the result
@@ -94,7 +94,7 @@ def predict_disease(image_path_to_predict):
         print(f"Confidence: **{confidence:.2f}%**")
         print("-------------------------\n")
     else:
-        print(f"Error: Model predicted index {predicted_class_index}, but CLASS_NAMES list has only {len(CLASS_NAMES)} items.")
+        print(f"Error: Model predicted index {predicted_class_index}, but the CLASS_NAMES list only has {len(CLASS_NAMES)} items. Please fix the CLASS_NAMES list.")
 
 
 # --- EXECUTION BLOCK ---
