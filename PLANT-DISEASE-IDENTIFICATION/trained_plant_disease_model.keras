@@ -1,106 +1,119 @@
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.models import load_model
-from PIL import Image
+# plant_disease_inference.ipynb
+
+# %% [markdown]
+# # Plant Disease Prediction with pre-trained model
+
+# %% [code]
 import os
+import numpy as np
+import matplotlib.pyplot as plt
+from tensorflow import keras
+from tensorflow.keras.preprocessing import image
 
-# --- CONFIGURATION (MUST BE CUSTOMIZED) ---
-# 1. MODEL PATH: Ensure this file is in the same directory as this script.
-MODEL_PATH = 'trained_plant_disease_model.keras'
+# %% [markdown]
+# ## 1. Load the model
 
-# 2. IMAGE DIMENSIONS: Confirmed from your model metadata (128x128).
-IMG_HEIGHT = 128
-IMG_WIDTH = 128
+# %% [code]
+model_path = "plant_disease_model.keras"  # adjust path if needed
+model = keras.models.load_model(model_path)
+model.summary()
 
-# 🚨 3. CRITICAL: REPLACE THIS LIST WITH YOUR ACTUAL CLASS NAMES 🚨
-# The order MUST match the order used when the model was trained!
-CLASS_NAMES = [
-    'Apple__Black_rot',
-    'Apple__Healthy',
-    'Corn_(maize)__Common_rust',
-    'Corn_(maize)__healthy',
-    # List ALL of your disease/healthy categories here!
-    'Tomato__Mosaic_virus',
-    'Tomato__healthy'
+# %% [markdown]
+# ## 2. Prepare class labels
+# You need a mapping from numeric class indices to disease names.  
+# Ideally from the original training (train directory names).
+
+# Example:
+class_names = [
+    "Apple___Black_rot",
+    "Apple___Cedar_apple_rust",
+    "Apple___healthy",
+    # … add all classes in same order as training
 ]
 
-# 🚨 4. TEST IMAGE PATH: Update this to the actual path of the image you want to test.
-# Example: 'C:/Users/YourName/Desktop/test_images/sick_leaf.jpg'
-TEST_IMAGE_PATH = 'path/to/your/test_leaf_image.jpg'
-# ------------------------------------------
+# %% [markdown]
+# ## 3. Utility: load and preprocess a single image
 
+# %% [code]
+def load_and_preprocess(img_path, target_size=(224, 224)):
+    img = image.load_img(img_path, target_size=target_size)
+    img_array = image.img_to_array(img)
+    img_array = img_array / 255.0  # normalize
+    img_array = np.expand_dims(img_array, axis=0)  # make batch of 1
+    return img_array
 
-def load_and_preprocess_image(img_path):
-    """Loads an image, resizes it, and converts it to a normalized batch tensor."""
-    if not os.path.exists(img_path):
-        print(f"Error: Image file not found at {img_path}")
-        return None
+# %% [markdown]
+# ## 4. Predict on a sample image
 
-    print(f"Loading and preprocessing image: {img_path}")
-    try:
-        # Load the image and ensure it has 3 color channels (RGB)
-        img = Image.open(img_path).convert('RGB')
+# %% [code]
+test_img_path = "test/Apple___Black_rot/0ef9...jpg"  # adjust to an actual test image path
+img_arr = load_and_preprocess(test_img_path, target_size=(224,224))
 
-        # Resize the image to 128x128
-        img = img.resize((IMG_WIDTH, IMG_HEIGHT))
+pred = model.predict(img_arr)
+pred_class_idx = np.argmax(pred[0])
+pred_confidence = pred[0][pred_class_idx]
 
-        # Convert to numpy array
-        img_array = np.array(img)
+print("Predicted class index:", pred_class_idx)
+print("Confidence:", pred_confidence)
 
-        # Add the batch dimension (1, 128, 128, 3)
-        img_array = np.expand_dims(img_array, axis=0)
+pred_class_name = class_names[pred_class_idx]
+print("Predicted disease / class:", pred_class_name)
 
-        # Normalize the pixel values (0-255 -> 0-1) as done during training
-        normalized_img_array = img_array / 255.0
+# %% [markdown]
+# ## 5. Display image + predicted label
 
-        return normalized_img_array
+# %% [code]
+plt.imshow(image.load_img(test_img_path))
+plt.axis("off")
+plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
+plt.show()
 
-    except Exception as e:
-        print(f"An error occurred during image processing: {e}")
-        return None
+# %% [markdown]
+# ## 6. Batch prediction on a folder
 
+# %% [code]
+def predict_on_folder(folder_path):
+    results = []
+    for fname in os.listdir(folder_path):
+        if fname.lower().endswith((".jpg", ".png", ".jpeg")):
+            full = os.path.join(folder_path, fname)
+            arr = load_and_preprocess(full)
+            pred = model.predict(arr)
+            idx = np.argmax(pred[0])
+            conf = pred[0][idx]
+            results.append((fname, class_names[idx], conf))
+    return results
 
-def predict_disease(image_path_to_predict):
-    """Loads the model and predicts the class of the input image."""
-    try:
-        print("Loading model...")
-        model = load_model(MODEL_PATH) 
-        print("Model loaded successfully.")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        print(f"FATAL: Ensure '{MODEL_PATH}' is correct and in the same directory as this script.")
-        return
+folder = "test/Apple___healthy"  # example
+res = predict_on_folder(folder)
+for fname, cls, conf in res:
+    print(f"{fname} → {cls} ({conf:.2f})")
 
-    # 1. Prepare the image
-    input_data = load_and_preprocess_image(image_path_to_predict)
+# %% [markdown]
+# ## 7. (Optional) Evaluate accuracy across test set
 
-    if input_data is None:
-        return
+# You could loop through all test subfolders, compare predicted vs true labels, and compute accuracy.
 
-    # 2. Make the prediction
-    print("Making prediction...")
-    # model.predict returns probabilities for each class
-    predictions = model.predict(input_data)
+# %% [code]
+def evaluate_test_dir(test_dir):
+    total = 0
+    correct = 0
+    for class_name in os.listdir(test_dir):
+        class_folder = os.path.join(test_dir, class_name)
+        if not os.path.isdir(class_folder):
+            continue
+        for fname in os.listdir(class_folder):
+            if not fname.lower().endswith((".jpg", ".png", ".jpeg")):
+                continue
+            img_path = os.path.join(class_folder, fname)
+            arr = load_and_preprocess(img_path)
+            pred = model.predict(arr)
+            idx = np.argmax(pred[0])
+            if class_names[idx] == class_name:
+                correct += 1
+            total += 1
+    print("Test Accuracy = {:.2f}%".format(100 * correct / total))
 
-    # 3. Interpret the result
-    predicted_class_index = np.argmax(predictions[0])
-    
-    if 0 <= predicted_class_index < len(CLASS_NAMES):
-        predicted_class_name = CLASS_NAMES[predicted_class_index]
-        confidence = np.max(predictions[0]) * 100
+test_dir = "test"
+evaluate_test_dir(test_dir)
 
-        print("\n--- PREDICTION RESULT ---")
-        print(f"Predicted Disease: **{predicted_class_name}**")
-        print(f"Confidence: **{confidence:.2f}%**")
-        print("-------------------------\n")
-    else:
-        print(f"Error: Model predicted index {predicted_class_index}, but the CLASS_NAMES list only has {len(CLASS_NAMES)} items. Please fix the CLASS_NAMES list.")
-
-
-# --- EXECUTION BLOCK ---
-if __name__ == "__main__":
-    
-    if os.path.exists(MODEL_PATH):
-        predict_disease(TEST_IMAGE_PATH)
-    else:
-        print(f"FATAL ERROR: Model file '{MODEL_PATH}' not found. Place the .keras file in the same directory.")
