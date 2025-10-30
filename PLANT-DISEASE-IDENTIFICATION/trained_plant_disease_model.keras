@@ -1,109 +1,184 @@
-import numpy as np
 import tensorflow as tf
-from tensorflow.keras.models import load_model
-from PIL import Image
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, BatchNormalization
+from tensorflow.keras.preprocessing.image import ImageDataGenerator
+import numpy as np
 import os
+import datetime
 
 # --- CONFIGURATION ---
+# 🚨 1. DATASET PATHS: Change this to the main folder containing your plant disease images.
+# Inside this folder, you should have subfolders for each class (e.g., 'Apple___Healthy', 'Corn___Rust').
+DATA_DIR = 'path/to/your/PlantVillage_Dataset' 
 
-# ✅ Your model file name is correct. Ensure it's in the same folder as this script.
-MODEL_PATH = os.path.abspath('trained_plant_disease_model.keras')
+# 🚨 2. NUMBER OF CLASSES: Update this with the total count of disease/healthy classes you have (e.g., 38).
+NUM_CLASSES = 38 
 
-# ✅ Model input size is confirmed to be 128x128 from the model metadata.
+# 3. TRAINING PARAMETERS (Adjust as needed)
+BATCH_SIZE = 32
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
-
-# 🚨 CRITICAL: YOU MUST UPDATE THIS LIST 🚨
-# Replace these placeholders with the 38 (or however many) specific class names 
-# your model was trained to recognize, in the exact order they were trained.
-CLASS_NAMES = [
-    'Apple__Black_rot',
-    'Apple__Healthy',
-    'Corn_(maize)__Common_rust',
-    'Corn_(maize)__healthy',
-    'Potato__Late_blight',
-    'Potato__healthy',
-    # ... Add ALL your disease classes here ...
-    'Tomato__Mosaic_virus',
-    'Tomato__healthy'
-]
+EPOCHS = 20
+MODEL_NAME = 'trained_plant_disease_model.keras'
 # ---------------------
 
 
-def load_and_preprocess_image(img_path):
-    """Loads an image, resizes it, converts it to a normalized batch tensor."""
-    if not os.path.exists(img_path):
-        print(f"Error: Image file not found at {img_path}")
-        return None
-
-    print(f"Loading and preprocessing image: {img_path}")
-    try:
-        # Load the image and ensure it's RGB
-        img = Image.open(img_path).convert('RGB')
-
-        # Resize the image to 128x128
-        img = img.resize((IMG_WIDTH, IMG_HEIGHT))
-
-        # Convert to numpy array
-        img_array = np.array(img)
-
-        # Add the batch dimension (1, 128, 128, 3)
-        img_array = np.expand_dims(img_array, axis=0)
-
-        # Normalize the pixel values (0-255 -> 0-1)
-        normalized_img_array = img_array / 255.0
-
-        return normalized_img_array
-
-    except Exception as e:
-        print(f"An error occurred during image processing: {e}")
-        return None
-
-
-def predict_disease(image_path_to_predict):
-    """Loads the model and predicts the class of the input image."""
-    try:
-        print("Loading model...")
-        model = load_model(MODEL_PATH)
-        print("Model loaded successfully.")
-    except Exception as e:
-        print(f"Error loading model: {e}")
-        print(f"Ensure '{MODEL_PATH}' is correct and in this directory.")
-        return
-
-    # 1. Prepare the image
-    input_data = load_and_preprocess_image(image_path_to_predict)
-
-    if input_data is None:
-        return
-
-    # 2. Make the prediction
-    print("Making prediction...")
-    predictions = model.predict(input_data)
-
-    # 3. Interpret the result
-    predicted_class_index = np.argmax(predictions[0])
+def create_data_generators(data_dir, img_height, img_width, batch_size):
+    """
+    Sets up data generators for training and validation, including augmentation.
+    Assumes your data directory has 'train' and 'valid' subdirectories.
+    """
     
-    if 0 <= predicted_class_index < len(CLASS_NAMES):
-        predicted_class_name = CLASS_NAMES[predicted_class_index]
-        confidence = np.max(predictions[0]) * 100
+    # --- Data Augmentation for Training ---
+    # This helps the model generalize better by seeing varied images.
+    train_datagen = ImageDataGenerator(
+        rescale=1./255,                 # Normalize pixel values
+        rotation_range=30,              # Rotate images by up to 30 degrees
+        zoom_range=0.2,                 # Zoom in/out by up to 20%
+        width_shift_range=0.1,          # Shift images horizontally
+        height_shift_range=0.1,         # Shift images vertically
+        shear_range=0.1,                # Apply shear transformation
+        horizontal_flip=True,           # Flip images horizontally
+        fill_mode='nearest',            # Fill newly created pixels
+        validation_split=0.2            # Use 20% of data for validation
+    )
+    
+    # --- Data Scaling for Validation ---
+    # Validation data is only scaled, not augmented.
+    valid_datagen = ImageDataGenerator(rescale=1./255, validation_split=0.2)
 
-        print("\n--- PREDICTION RESULT ---")
-        print(f"Predicted Disease: **{predicted_class_name}**")
-        print(f"Confidence: **{confidence:.2f}%**")
-        print("-------------------------\n")
-    else:
-        print(f"Error: The model predicted class index {predicted_class_index}, but your CLASS_NAMES list only has {len(CLASS_NAMES)} items. Please correct your CLASS_NAMES list.")
+    print("Loading Training Data...")
+    train_generator = train_datagen.flow_from_directory(
+        data_dir,
+        target_size=(img_height, img_width),
+        batch_size=batch_size,
+        class_mode='categorical',       # Required for multi-class classification
+        subset='training'
+    )
+
+    print("Loading Validation Data...")
+    validation_generator = valid_datagen.flow_from_directory(
+        data_dir,
+        target_size=(img_height, img_width),
+        batch_size=batch_size,
+        class_mode='categorical',
+        subset='validation'
+    )
+    
+    # Save the class names/indices for later use (e.g., in prediction script)
+    # The keys in this dictionary are the class names.
+    class_names = list(train_generator.class_indices.keys())
+    print("\nDetected Class Names (in order):")
+    for i, name in enumerate(class_names):
+        print(f"  {i}: {name}")
+        
+    # You may want to save this list to a file here!
+    
+    return train_generator, validation_generator
 
 
-# --- EXECUTION BLOCK ---
+def create_model(num_classes, img_height, img_width):
+    """
+    Defines the Convolutional Neural Network architecture.
+    """
+    model = Sequential([
+        # Input layer (inferred from your .keras metadata)
+        tf.keras.Input(shape=(img_height, img_width, 3)),
+        
+        # --- Feature Extraction Layers ---
+        # 1st Conv Block (inferred from your .keras metadata)
+        Conv2D(32, (3, 3), activation='relu', padding='same', name='conv2d_1'),
+        MaxPooling2D((2, 2)),
+        
+        # 2nd Conv Block
+        Conv2D(64, (3, 3), activation='relu', padding='same'),
+        MaxPooling2D((2, 2)),
+        
+        # 3rd Conv Block
+        Conv2D(128, (3, 3), activation='relu', padding='same'),
+        MaxPooling2D((2, 2)),
+        
+        # 4th Conv Block
+        Conv2D(256, (3, 3), activation='relu', padding='same'),
+        MaxPooling2D((2, 2)),
+        
+        # --- Classifier Layers ---
+        Flatten(),                  # Prepare for Dense layers
+        Dropout(0.5),               # Regularization to prevent overfitting
+        Dense(512, activation='relu'),
+        
+        # Output Layer: Uses 'softmax' for multi-class probability output
+        Dense(num_classes, activation='softmax')
+    ], name='Plant_Disease_Classifier')
+    
+    return model
+
+
+def compile_and_train(model, train_generator, validation_generator, epochs):
+    """
+    Compiles the model and starts the training process.
+    """
+    # --- Model Compilation ---
+    model.compile(
+        optimizer='adam',                               # Adaptive Moment Estimation (great default)
+        loss='categorical_crossentropy',                # Standard loss for multi-class classification
+        metrics=['accuracy']
+    )
+
+    model.summary()
+    
+    # --- Callbacks ---
+    # Save the best model during training based on validation accuracy
+    checkpoint_filepath = 'best_model_checkpoint'
+    model_checkpoint_callback = tf.keras.callbacks.ModelCheckpoint(
+        filepath=checkpoint_filepath,
+        save_weights_only=False,
+        monitor='val_accuracy',
+        mode='max',
+        save_best_only=True
+    )
+
+    # Stop training early if validation accuracy stops improving
+    early_stopping_callback = tf.keras.callbacks.EarlyStopping(
+        monitor='val_loss', 
+        patience=5,
+        restore_best_weights=True
+    )
+    
+    # --- Model Training ---
+    print("\nStarting model training...")
+    history = model.fit(
+        train_generator,
+        steps_per_epoch=train_generator.samples // train_generator.batch_size,
+        epochs=epochs,
+        validation_data=validation_generator,
+        validation_steps=validation_generator.samples // validation_generator.batch_size,
+        callbacks=[model_checkpoint_callback, early_stopping_callback]
+    )
+    
+    return history
+
+
+# --- MAIN EXECUTION BLOCK ---
 if __name__ == "__main__":
-    # 🚨 CRITICAL: UPDATE THIS PATH 🚨
-    # Change this to the actual path of the image you want to classify (e.g., 'test_images/apple_leaf.jpg')
-    TEST_IMAGE_PATH = 'path/to/your/leaf_image.jpg'
-
-    if os.path.exists(MODEL_PATH):
-        predict_disease(TEST_IMAGE_PATH)
-    else:
-        print(f"FATAL ERROR: Model file '{MODEL_PATH}' not found. Place the .keras file in the same directory.")
-
+    
+    # 1. Setup Data Generators
+    train_gen, valid_gen = create_data_generators(DATA_DIR, IMG_HEIGHT, IMG_WIDTH, BATCH_SIZE)
+    
+    # 2. Create Model
+    model = create_model(NUM_CLASSES, IMG_HEIGHT, IMG_WIDTH)
+    
+    # 3. Train Model
+    _ = compile_and_train(model, train_gen, valid_gen, EPOCHS)
+    
+    # 4. Save Final Model
+    # The ModelCheckpoint saved the best version; we load and save it to the desired final file name.
+    print(f"\nLoading best weights and saving final model as: {MODEL_NAME}")
+    try:
+        # Load the weights from the best checkpoint
+        best_model = tf.keras.models.load_model('best_model_checkpoint')
+        best_model.save(MODEL_NAME)
+        print("Model training and saving complete!")
+    except Exception as e:
+        print(f"Error saving final model: {e}")
+        print("Please check file permissions or disk space.")
