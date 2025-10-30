@@ -1,111 +1,235 @@
+# %% [markdown]
+# # Plant Disease Prediction with pre-trained model (Runnable)
+
+# %% [code]
 import os
+import numpy as np
+import matplotlib.pyplot as plt
 import tensorflow as tf
-from tensorflow.keras.preprocessing.image import ImageDataGenerator
-from tensorflow.keras.applications import EfficientNetB0
-from tensorflow.keras import layers, models
-from tensorflow.keras.optimizers import Adam
-from tensorflow.keras.callbacks import EarlyStopping, ModelCheckpoint
+from tensorflow import keras
+from tensorflow.keras.preprocessing import image
 
-# -------------------- PATH CONFIG --------------------
-BASE_DIR = "PLANT-DISEASE-IDENTIFICATION"
-TRAIN_DIR = os.path.join(BASE_DIR, "train")
-TEST_DIR = os.path.join(BASE_DIR, "test")
+# --- Placeholder Setup for Demonstration ---
+# IMPORTANT: For this script to run successfully, you MUST have the actual model file
+# and the actual test images in the specified paths.
+# If you don't have them, the script will throw FileNotFoundError.
 
-if not os.path.exists(TRAIN_DIR) or not os.path.exists(TEST_DIR):
-    raise FileNotFoundError("Ensure 'train' and 'test' folders exist inside PLANT-DISEASE-IDENTIFICATION")
+# Create dummy files and directories if they don't exist, just to make the
+# script run without immediate errors (You must replace the model and test images later).
 
-# -------------------- PARAMETERS --------------------
-IMG_SIZE = (224, 224)
-BATCH_SIZE = 32
-EPOCHS = 15
-LEARNING_RATE = 1e-4
-H5_MODEL_PATH = "plant_disease_model.h5"  # save as .h5
+MODEL_FILE = "plant_disease_model.keras"
+if not os.path.exists(MODEL_FILE):
+    print(f"WARNING: Model file '{MODEL_FILE}' not found. You must train and save your model.")
+    # If you get an error here, it means you need to train and save your model first.
 
-# -------------------- DATA GENERATORS --------------------
-train_datagen = ImageDataGenerator(
-    rescale=1./255,
-    rotation_range=25,
-    width_shift_range=0.2,
-    height_shift_range=0.2,
-    zoom_range=0.2,
-    shear_range=0.2,
-    horizontal_flip=True
-)
+# Create a minimal 'test' directory structure and a dummy image file.
+TEST_ROOT_DIR = "test"
+TEST_CLASS_DIR = os.path.join(TEST_ROOT_DIR, "Apple___Black_rot")
+TEST_IMAGE_PATH = os.path.join(TEST_CLASS_DIR, "0ef9_dummy.jpg")
 
-test_datagen = ImageDataGenerator(rescale=1./255)
+# You would normally NOT do this in production, but we do it for a runnable example.
+# We skip creating a dummy image since load_img will still fail unless it's a valid JPEG/PNG.
+# --- End of Placeholder Setup ---
 
-train_gen = train_datagen.flow_from_directory(
-    TRAIN_DIR,
-    target_size=IMG_SIZE,
-    batch_size=BATCH_SIZE,
-    class_mode='categorical'
-)
 
-test_gen = test_datagen.flow_from_directory(
-    TEST_DIR,
-    target_size=IMG_SIZE,
-    batch_size=BATCH_SIZE,
-    class_mode='categorical',
-    shuffle=False
-)
+# %% [markdown]
+# ## 1. Load the model
 
-num_classes = train_gen.num_classes
-print(f"✅ Found {num_classes} plant disease classes.")
-
-# -------------------- MODEL --------------------
-base_model = EfficientNetB0(include_top=False, input_shape=IMG_SIZE + (3,), weights='imagenet')
-base_model.trainable = False
-
-model = models.Sequential([
-    base_model,
-    layers.GlobalAveragePooling2D(),
-    layers.Dropout(0.3),
-    layers.Dense(256, activation='relu'),
-    layers.Dropout(0.3),
-    layers.Dense(num_classes, activation='softmax')
-])
-
-model.compile(
-    optimizer=Adam(learning_rate=LEARNING_RATE),
-    loss='categorical_crossentropy',
-    metrics=['accuracy']
-)
-
+# %% [code]
+# Adjust the path if your model is elsewhere!
+model_path = MODEL_FILE
+model = keras.models.load_model(model_path)
+print("Model loaded successfully.")
 model.summary()
 
-# -------------------- CALLBACKS --------------------
-checkpoint = ModelCheckpoint(H5_MODEL_PATH, save_best_only=True, monitor='val_accuracy', mode='max')
-early_stop = EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)
+# %% [markdown]
+# ## 2. Prepare class labels
+# **ACTION REQUIRED: REPLACE THIS EXAMPLE LIST with your full list of class names.**
+# The order MUST match the output order of your trained model.
 
-# -------------------- TRAINING --------------------
-history = model.fit(
-    train_gen,
-    validation_data=test_gen,
-    epochs=EPOCHS,
-    callbacks=[checkpoint, early_stop],
-    verbose=1
-)
+# Example with a small subset:
+class_names = [
+    "Apple___Black_rot",
+    "Apple___Cedar_apple_rust",
+    "Apple___healthy",
+    "Corn___Common_rust",
+    "Corn___healthy",
+    "Potato___Late_blight",
+    "Potato___healthy",
+    # ... add ALL classes in the exact order used during training!
+]
+# If your model has N output nodes, your class_names list must have N elements.
 
-# -------------------- FINE-TUNING --------------------
-base_model.trainable = True
-for layer in base_model.layers[:100]:
-    layer.trainable = False
+# %% [markdown]
+# ## 3. Utility: load and preprocess a single image
 
-model.compile(
-    optimizer=Adam(learning_rate=1e-5),
-    loss='categorical_crossentropy',
-    metrics=['accuracy']
-)
+# %% [code]
+def load_and_preprocess(img_path, target_size=(224, 224)):
+    """Loads, resizes, normalizes, and expands an image for model prediction."""
+    try:
+        img = image.load_img(img_path, target_size=target_size)
+    except FileNotFoundError:
+        print(f"\nERROR: Image file not found at: {img_path}")
+        # Return a dummy array to prevent immediate crash, though prediction will fail.
+        return np.zeros((1, target_size[0], target_size[1], 3))
 
-fine_tune_history = model.fit(
-    train_gen,
-    validation_data=test_gen,
-    epochs=5,
-    callbacks=[checkpoint, early_stop],
-    verbose=1
-)
+    img_array = image.img_to_array(img)
+    img_array = img_array / 255.0  # normalize
+    img_array = np.expand_dims(img_array, axis=0)  # make batch of 1
+    return img_array
 
-# -------------------- SAVE MODEL --------------------
-model.save(H5_MODEL_PATH)
-print(f"✅ Model training completed and saved as '{H5_MODEL_PATH}'")
+# %% [markdown]
+# ## 4. Predict on a sample image
 
+# %% [code]
+# ACTION REQUIRED: Adjust this path to point to a REAL test image in your project.
+test_img_path = TEST_IMAGE_PATH
+print(f"Attempting prediction on: {test_img_path}")
+
+img_arr = load_and_preprocess(test_img_path, target_size=(224,224))
+
+# Only run prediction if the preprocessing didn't return the dummy array (i.e., file was found)
+if np.sum(img_arr) != 0:
+    # Use verbose=0 to hide progress bars for each prediction
+    pred = model.predict(img_arr, verbose=0)
+    pred_class_idx = np.argmax(pred[0])
+    pred_confidence = pred[0][pred_class_idx]
+
+    print("\n--- Single Image Prediction ---")
+    print("Predicted class index:", pred_class_idx)
+    print(f"Confidence: {pred_confidence:.4f}")
+
+    if pred_class_idx < len(class_names):
+        pred_class_name = class_names[pred_class_idx]
+        print("Predicted disease / class:", pred_class_name)
+    else:
+        print(f"ERROR: Predicted index {pred_class_idx} is outside the bounds of class_names (size {len(class_names)}).")
+else:
+    pred_class_name = "N/A (Image not found)"
+    pred_confidence = 0.0
+
+# %% [markdown]
+# ## 5. Display image + predicted label
+
+# %% [code]
+if os.path.exists(test_img_path):
+    plt.imshow(image.load_img(test_img_path))
+    plt.axis("off")
+    plt.title(f"Prediction: {pred_class_name} ({pred_confidence:.2f})")
+    plt.show()
+else:
+    print("\nSkipping image display because the test image file was not found.")
+
+# %% [markdown]
+# ## 6. Batch prediction on a folder
+
+# %% [code]
+def predict_on_folder(folder_path):
+    """Predicts the class for all images in a given folder."""
+    if not os.path.isdir(folder_path):
+        print(f"ERROR: Folder not found at: {folder_path}")
+        return []
+
+    results = []
+    print(f"\n--- Batch Prediction on Folder: {folder_path} ---")
+    
+    # Pre-calculate predictions for all images in the folder
+    all_fpaths = []
+    for fname in os.listdir(folder_path):
+        if fname.lower().endswith((".jpg", ".png", ".jpeg")):
+            all_fpaths.append(os.path.join(folder_path, fname))
+    
+    if not all_fpaths:
+        print("No images found in folder.")
+        return []
+
+    # Load all images into a single batch for efficient prediction
+    image_batches = [load_and_preprocess(fpath) for fpath in all_fpaths]
+    # Filter out dummy arrays (from not-found images) before concatenating
+    valid_batches = [arr for arr in image_batches if np.sum(arr) != 0]
+
+    if not valid_batches:
+         print("No valid images could be loaded from the folder.")
+         return []
+
+    full_batch = np.concatenate(valid_batches, axis=0)
+
+    # Predict all at once
+    # Use verbose=0 to hide progress bar
+    predictions = model.predict(full_batch, verbose=0) 
+
+    for i, pred in enumerate(predictions):
+        fname = os.path.basename(all_fpaths[i])
+        idx = np.argmax(pred)
+        conf = pred[idx]
+        
+        cls = class_names[idx] if idx < len(class_names) else f"Index {idx} (Out of Bounds)"
+        results.append((fname, cls, conf))
+        
+    return results
+
+# ACTION REQUIRED: Adjust this path to point to a REAL folder in your project.
+folder = os.path.join(TEST_ROOT_DIR, "Apple___healthy") 
+res = predict_on_folder(folder)
+
+for fname, cls, conf in res:
+    print(f"{fname} → {cls} ({conf:.2f})")
+
+# %% [markdown]
+# ## 7. (Optional) Evaluate accuracy across test set
+
+# %% [code]
+def evaluate_test_dir(test_dir):
+    """Evaluates the model accuracy by comparing predictions to test subdirectory names."""
+    if not os.path.isdir(test_dir):
+        print(f"ERROR: Test directory not found at: {test_dir}")
+        return
+        
+    total = 0
+    correct = 0
+    print("\n--- Starting Full Test Directory Evaluation ---")
+    for class_name in os.listdir(test_dir):
+        class_folder = os.path.join(test_dir, class_name)
+        if not os.path.isdir(class_folder):
+            continue
+        
+        # True label is the folder name
+        true_label = class_name 
+        
+        for fname in os.listdir(class_folder):
+            if not fname.lower().endswith((".jpg", ".png", ".jpeg")):
+                continue
+                
+            img_path = os.path.join(class_folder, fname)
+            arr = load_and_preprocess(img_path)
+            
+            if np.sum(arr) == 0:
+                # Image load failed, skip
+                continue
+
+            # Predict and compare
+            # Use verbose=0 to hide progress bar
+            pred = model.predict(arr, verbose=0)
+            idx = np.argmax(pred[0])
+            
+            # Check if index is valid
+            if idx >= len(class_names):
+                pred_label = "Index Out of Bounds"
+            else:
+                pred_label = class_names[idx]
+            
+            if pred_label == true_label:
+                correct += 1
+            
+            total += 1
+    
+    if total > 0:
+        accuracy = 100 * correct / total
+        print(f"\nTotal images evaluated: {total}")
+        print("Test Accuracy = {:.2f}%".format(accuracy))
+    else:
+        print("No images found for evaluation.")
+
+# ACTION REQUIRED: Ensure this path is correct.
+test_dir = TEST_ROOT_DIR
+evaluate_test_dir(test_dir)
