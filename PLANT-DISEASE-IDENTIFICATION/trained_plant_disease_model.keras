@@ -2,56 +2,55 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.models import load_model
 from PIL import Image
+import os
 
 # --- CONFIGURATION ---
-# 1. Path to your saved model file
+# Path to your saved model file
 MODEL_PATH = 'trained_plant_disease_model.keras'
 
-# 2. Define the input image size that the model was trained on
-# The metadata snippet shows the input shape is (128, 128, 3)
+# Define the input image size (from the model metadata: 128x128)
 IMG_HEIGHT = 128
 IMG_WIDTH = 128
 
-# 3. List of your disease class names in the same order they were trained
-# IMPORTANT: Replace these with the actual list of diseases in your project.
+# !!! CRITICAL: REPLACE THESE WITH YOUR ACTUAL DISEASE CLASS NAMES !!!
+# Ensure the order is exactly the same as when you trained the model.
 CLASS_NAMES = [
-    'Apple_Black_rot',
-    'Apple_Healthy',
-    'Corn_Common_rust',
-    'Corn_Healthy',
-    # ... Add all your other disease classes here ...
-    'Tomato_Late_blight',
-    'Tomato_Mosaic_virus'
+    'Class_01_Apple_Black_rot',
+    'Class_02_Apple_Healthy',
+    'Class_03_Corn_Common_rust',
+    'Class_04_Corn_Healthy',
+    # ... ADD ALL YOUR CLASSES HERE ...
+    'Class_N_Tomato_Late_blight',
+    'Class_N+1_Tomato_Mosaic_virus'
 ]
 # ---------------------
 
 
 def load_and_preprocess_image(img_path):
-    """Loads an image, resizes it, and converts it to a numpy array."""
-    print(f"Loading image from: {img_path}")
-    try:
-        # Load the image using PIL (Pillow)
-        img = Image.open(img_path)
+    """Loads an image, resizes it, converts it to a normalized batch tensor."""
+    if not os.path.exists(img_path):
+        print(f"Error: Image file not found at {img_path}")
+        return None
 
-        # Resize the image to the required dimensions (128x128)
+    print(f"Loading and preprocessing image: {img_path}")
+    try:
+        # Load the image
+        img = Image.open(img_path).convert('RGB')
+
+        # Resize the image to 128x128
         img = img.resize((IMG_WIDTH, IMG_HEIGHT))
 
-        # Convert the image to a numpy array
+        # Convert to numpy array
         img_array = np.array(img)
 
-        # The model expects a batch dimension, so we add one.
-        # Shape changes from (128, 128, 3) to (1, 128, 128, 3)
+        # Add the batch dimension (1, 128, 128, 3)
         img_array = np.expand_dims(img_array, axis=0)
 
-        # Normalize the pixel values. The model was likely trained with values
-        # scaled between 0 and 1, so we divide by 255.0
+        # Normalize the pixel values (0-255 -> 0-1)
         normalized_img_array = img_array / 255.0
 
         return normalized_img_array
 
-    except FileNotFoundError:
-        print(f"Error: The image file was not found at {img_path}")
-        return None
     except Exception as e:
         print(f"An error occurred during image processing: {e}")
         return None
@@ -77,30 +76,33 @@ def predict_disease(image_path_to_predict):
 
     # 2. Make the prediction
     print("Making prediction...")
-    # The model.predict() returns an array of probabilities (one for each class)
+    # model.predict returns probabilities for each class
     predictions = model.predict(input_data)
 
     # 3. Interpret the result
-    # The highest probability index corresponds to the predicted class
+    # Get the index of the highest probability
     predicted_class_index = np.argmax(predictions[0])
-    predicted_class_name = CLASS_NAMES[predicted_class_index]
-    confidence = np.max(predictions[0]) * 100
+    
+    # Get the corresponding class name
+    if 0 <= predicted_class_index < len(CLASS_NAMES):
+        predicted_class_name = CLASS_NAMES[predicted_class_index]
+        confidence = np.max(predictions[0]) * 100
 
-    print("\n--- PREDICTION RESULT ---")
-    print(f"Predicted Disease: {predicted_class_name}")
-    print(f"Confidence: {confidence:.2f}%")
-    print("-------------------------\n")
-
-    # Optional: Print all probabilities
-    # print("All class probabilities:")
-    # for name, prob in zip(CLASS_NAMES, predictions[0]):
-    #     print(f"  {name}: {prob*100:.2f}%")
+        print("\n--- PREDICTION RESULT ---")
+        print(f"Predicted Disease: **{predicted_class_name}**")
+        print(f"Confidence: **{confidence:.2f}%**")
+        print("-------------------------\n")
+    else:
+        print(f"Error: Predicted class index {predicted_class_index} is out of bounds for the defined CLASS_NAMES list.")
 
 
-# --- RUN THE PREDICTION ---
+# --- EXECUTION BLOCK ---
 if __name__ == "__main__":
-    # >>> CHANGE THIS TO THE PATH OF THE IMAGE YOU WANT TO TEST <<<
-    # For example: 'test_image/diseased_leaf.jpg'
-    TEST_IMAGE_PATH = 'path/to/your/test/image.jpg'
+    # >>> UPDATE THIS PATH TO YOUR IMAGE FILE <<<
+    TEST_IMAGE_PATH = 'path/to/your/leaf_image.jpg'
 
-    predict_disease(TEST_IMAGE_PATH)
+    # Check if the model file exists before running
+    if os.path.exists(MODEL_PATH):
+        predict_disease(TEST_IMAGE_PATH)
+    else:
+        print(f"FATAL ERROR: Model file '{MODEL_PATH}' not found. Place the .keras file in the same directory.")
