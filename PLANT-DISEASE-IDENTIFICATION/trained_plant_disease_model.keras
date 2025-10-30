@@ -10,25 +10,14 @@ from tensorflow import keras
 from tensorflow.keras.preprocessing import image
 
 # --- Placeholder Setup for Demonstration ---
-# IMPORTANT: For this script to run successfully, you MUST have the actual model file
-# and the actual test images in the specified paths.
-# If you don't have them, the script will throw FileNotFoundError.
-
-# Create dummy files and directories if they don't exist, just to make the
-# script run without immediate errors (You must replace the model and test images later).
-
-MODEL_FILE = "plant_disease_model.keras"
+MODEL_FILE = "plant_disease_model.keras" # <--- ENSURE THIS IS THE CORRECT PATH/NAME
 if not os.path.exists(MODEL_FILE):
-    print(f"WARNING: Model file '{MODEL_FILE}' not found. You must train and save your model.")
-    # If you get an error here, it means you need to train and save your model first.
+    # This warning is expected if you haven't fixed the path/LFS issue yet!
+    print(f"WARNING: Model file '{MODEL_FILE}' not found. Please fix the path or Git LFS issue.") 
 
-# Create a minimal 'test' directory structure and a dummy image file.
 TEST_ROOT_DIR = "test"
 TEST_CLASS_DIR = os.path.join(TEST_ROOT_DIR, "Apple___Black_rot")
 TEST_IMAGE_PATH = os.path.join(TEST_CLASS_DIR, "0ef9_dummy.jpg")
-
-# You would normally NOT do this in production, but we do it for a runnable example.
-# We skip creating a dummy image since load_img will still fail unless it's a valid JPEG/PNG.
 # --- End of Placeholder Setup ---
 
 
@@ -43,22 +32,51 @@ print("Model loaded successfully.")
 model.summary()
 
 # %% [markdown]
-# ## 2. Prepare class labels
-# **ACTION REQUIRED: REPLACE THIS EXAMPLE LIST with your full list of class names.**
+# ## 2. Prepare class labels (FULL PLANTVILLAGE 38 CLASSES)
+# This list is inserted based on the standard PlantVillage 38-class dataset.
 # The order MUST match the output order of your trained model.
 
-# Example with a small subset:
+# %% [code]
 class_names = [
+    "Apple___Apple_scab",
     "Apple___Black_rot",
     "Apple___Cedar_apple_rust",
     "Apple___healthy",
-    "Corn___Common_rust",
-    "Corn___healthy",
+    "Blueberry___healthy",
+    "Cherry_(including_sour)___Powdery_mildew",
+    "Cherry_(including_sour)___healthy",
+    "Corn_(maize)___Cercospora_leaf_spot Gray_leaf_spot",
+    "Corn_(maize)___Common_rust_",
+    "Corn_(maize)___Northern_Leaf_Blight",
+    "Corn_(maize)___healthy",
+    "Grape___Black_rot",
+    "Grape___Esca_(Black_Measles)",
+    "Grape___Isariopsis_Leaf_Spot_(Daemonorabali)",
+    "Grape___healthy",
+    "Orange___Haunglongbing_(Citrus_greening)",
+    "Peach___Bacterial_spot",
+    "Peach___healthy",
+    "Pepper,_bell___Bacterial_spot",
+    "Pepper,_bell___healthy",
+    "Potato___Early_blight",
     "Potato___Late_blight",
     "Potato___healthy",
-    # ... add ALL classes in the exact order used during training!
+    "Raspberry___healthy",
+    "Soybean___healthy",
+    "Squash___Powdery_mildew",
+    "Strawberry___Leaf_scorch",
+    "Strawberry___healthy",
+    "Tomato___Bacterial_spot",
+    "Tomato___Early_blight",
+    "Tomato___Late_blight",
+    "Tomato___Leaf_Mold",
+    "Tomato___Septoria_leaf_spot",
+    "Tomato___Spider_mites Two-spotted_spider_mite",
+    "Tomato___Target_Spot",
+    "Tomato___Tomato_Yellow_Leaf_Curl_Virus",
+    "Tomato___Tomato_mosaic_virus",
+    "Tomato___healthy"
 ]
-# If your model has N output nodes, your class_names list must have N elements.
 
 # %% [markdown]
 # ## 3. Utility: load and preprocess a single image
@@ -70,7 +88,6 @@ def load_and_preprocess(img_path, target_size=(224, 224)):
         img = image.load_img(img_path, target_size=target_size)
     except FileNotFoundError:
         print(f"\nERROR: Image file not found at: {img_path}")
-        # Return a dummy array to prevent immediate crash, though prediction will fail.
         return np.zeros((1, target_size[0], target_size[1], 3))
 
     img_array = image.img_to_array(img)
@@ -149,8 +166,8 @@ def predict_on_folder(folder_path):
     valid_batches = [arr for arr in image_batches if np.sum(arr) != 0]
 
     if not valid_batches:
-         print("No valid images could be loaded from the folder.")
-         return []
+        print("No valid images could be loaded from the folder.")
+        return []
 
     full_batch = np.concatenate(valid_batches, axis=0)
 
